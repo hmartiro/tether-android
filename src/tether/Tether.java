@@ -10,7 +10,7 @@ public class Tether {
 	
 	private static Map<String, Tether> tethers = new HashMap<String, Tether>();
 	
-	private BTThread btt;
+	private static BTThread btt;
 	private String TAG = "libtether";
 	
 	private String address;
