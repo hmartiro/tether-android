@@ -4,15 +4,16 @@
   package fi.sulautetut.android.tblueclient;
    
   import java.io.IOException;
-  import java.io.InputStream;
-  import java.io.OutputStream;
-  import java.lang.reflect.InvocationTargetException;
-  import java.lang.reflect.Method;
- 
-  import android.bluetooth.BluetoothAdapter;
-  import android.bluetooth.BluetoothDevice;
-  import android.bluetooth.BluetoothSocket;
-  import android.util.Log;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.util.Locale;
+
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothSocket;
+import android.util.Log;
    
   public class TBlue { 
     String address=null; 
@@ -24,9 +25,9 @@
     public InputStream inStream=null;
     boolean failed=false;
    
-    public TBlue(String address) 
+	public TBlue(String address) 
     {
-        this.address=address.toUpperCase();
+        this.address=address.toUpperCase(Locale.ENGLISH);
         localAdapter = BluetoothAdapter.getDefaultAdapter(); 
         if ((localAdapter!=null) && localAdapter.isEnabled()) {
             Log.i(TAG, "Bluetooth adapter found and enabled on phone. ");
