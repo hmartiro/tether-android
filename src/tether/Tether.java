@@ -1,29 +1,48 @@
 package tether;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import android.util.Log;
 import fi.sulautetut.android.tblueclient.TBlue;
 
 public class Tether {
 	
-	private BTThread btt;
-	private String TAG = "tether";
+	private static Map<String, Tether> tethers = new HashMap<String, Tether>();
 	
+	private BTThread btt;
+	private String TAG = "libtether";
+	
+	private String address;
 	private TetherCallbacks tetherCallbacks;
 	
 	private double X;
 	private double Y;
 	private double Z;
 	
-	public Tether(String address, TetherCallbacks tCallbacks) {
+	/* Creates a Tether object with the given address and callbacks. */
+	public static Tether makeTether(String addr, TetherCallbacks tCallbacks) {
+		Tether tether = new Tether(addr, tCallbacks);
+		Log.v("libtether", "Creating new tether object: " + tether);
+		tethers.put(addr, tether);
+		return tether;
+	}
+	
+	/* Returns a Tether object given the address. */
+	public static Tether getTether(String addr) {
+		return tethers.get(addr);
+	}
+	
+	public Tether(String addr, TetherCallbacks tCallbacks) {
 		
 		X = 0.0;
 		Y = 0.0;
 		Z = 0.0;
 		
 		tetherCallbacks = tCallbacks;
+		address = addr;
 		
-		btt = new BTThread(address);
-		btt.start();
+		btt = null;
 	}
 	
 	public double X() {
@@ -39,7 +58,7 @@ public class Tether {
 	}
 	
 	public String toString() {
-		return "<Tether: " + btt.address + ">";
+		return "<Tether: " + address + ">";
 	}
 	
 	public void sendCommand(String command) {
@@ -47,11 +66,18 @@ public class Tether {
 	}
 	
 	public void start() {
-		btt.on = true;
+		Log.v(TAG, "Tether start called!");
+		if (btt == null) {
+			btt = new BTThread(address);
+			btt.start();
+		}
 	}
 	
 	public void stop() {
-		btt.on = false;
+		if (btt != null) {
+			btt.on = false;
+			btt = null;
+		}
 	}
 	
 	public interface TetherCallbacks {
@@ -61,8 +87,6 @@ public class Tether {
 	}
 	
 	private class BTThread extends Thread {
-		
-		public String address;
 		
 		private TBlue bluetooth;
 		private boolean on;
@@ -79,10 +103,9 @@ public class Tether {
 		private long last_command_time;
 		
 		public BTThread(String addr) {
-			address = addr;
 			bluetooth = new TBlue(address);
 			connected = false;
-			on = false;
+			on = true;
 			pending_out_command = "";
 			rx_buffer = "";
 			last_command_time = System.currentTimeMillis();
@@ -124,7 +147,6 @@ public class Tether {
 		public void run() {
 			
 			while (true) {
-				
 				if(!on) {
 					if (connected) {
 						Log.v(TAG, "Tether stopped by user, closing.");
@@ -134,11 +156,16 @@ public class Tether {
 						tetherCallbacks.disconnected();
 						bluetooth.close();
 					}
-					continue;
+					Log.v(TAG, "Tether thread stopping.");
+					return;
 				}
 				
 				if (connected == false) {
 					Log.v(TAG, "Attempting to connect...");
+					
+					if (bluetooth.streaming())
+						bluetooth.close();
+					
 					if (bluetooth.connect()) {
 						Log.v(TAG, "Connected to tether!");
 						connected = true;
