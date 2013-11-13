@@ -1,5 +1,8 @@
 package tether;
 
+import java.io.UnsupportedEncodingException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -10,7 +13,7 @@ public class Tether {
 	
 	private static Map<String, Tether> tethers = new HashMap<String, Tether>();
 	
-	private static BTThread btt;
+	private BTThread btt;
 	private String TAG = "libtether";
 	
 	private String address;
@@ -19,6 +22,10 @@ public class Tether {
 	private double X;
 	private double Y;
 	private double Z;
+	
+	private int sX = 0;
+	private int sY = 0;
+	private int sZ = 0;
 	
 	/* Creates a Tether object with the given address and callbacks. */
 	public static Tether makeTether(String addr, TetherCallbacks tCallbacks) {
@@ -112,9 +119,74 @@ public class Tether {
 		}
 		
 		private void commandReceived(String command) {
-			Log.v(TAG, "Full command received: " + command);
+			Log.v(TAG, "Full command received: " + command + ", length: " + command.length());
 			
 			last_command_time = System.currentTimeMillis();
+			
+			/*
+			byte[] bytes;
+			try {
+				bytes = command.getBytes("US-ASCII");
+			} catch (UnsupportedEncodingException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+				return;
+			}
+			
+			char command_name = (char)bytes[0];
+			Log.v(TAG, "Command name: " + command_name);
+			
+			// Check for data command
+			if(command_name == 'D') {
+				
+				if (bytes.length != 8) {
+					Log.e(TAG, "Got data command with length " + bytes.length + ", not 8!");
+					return;
+				}
+				
+				ByteBuffer bX = ByteBuffer.allocate(2);
+				bX.order(ByteOrder.LITTLE_ENDIAN);
+				bX.put(bytes[1]);
+				bX.put(bytes[2]);
+				sX = bX.getShort(0);
+				
+				ByteBuffer bY = ByteBuffer.allocate(2);
+				bY.order(ByteOrder.LITTLE_ENDIAN);
+				bY.put(bytes[3]);
+				bY.put(bytes[4]);
+				sY = bY.getShort(0);
+				
+				ByteBuffer bZ = ByteBuffer.allocate(2);
+				bZ.order(ByteOrder.LITTLE_ENDIAN);
+				bZ.put(bytes[5]);
+				bZ.put(bytes[6]);
+				sZ = bZ.getShort(0);
+
+				short highX = (short) (bytes[1] & 0xFF);
+				short lowX = (short) (bytes[2] & 0xFF);
+				sX = ((highX & 0xFF));// << 8) | (lowX & 0xFF);
+				
+				short highY = (short) (bytes[3] & 0xFF);
+				short lowY = (short) (bytes[4] & 0xFF);
+				sY = ((highY & 0xFF));// << 8) | (lowY & 0xFF);
+				
+				short highZ = (short) (bytes[5] & 0xFF);
+				short lowZ = (short) (bytes[6] & 0xFF);
+				sZ = ((highZ & 0xFF));// << 8) | (lowZ & 0xFF);
+				
+				//sX = (short)( ((bytes[1] & 0xFF) << 8) | (bytes[2] & 0xFF) );
+				//sY = (short)( ((bytes[3] & 0xFF) << 8) | (bytes[4] & 0xFF) );
+				//sZ = (short)( ((bytes[5] & 0xFF) << 8) | (bytes[6] & 0xFF) );
+				//Log.v(TAG, "value of z: " + sZ);
+				//Log.v(TAG, "X VALUE BITSTRING: " + Integer.toBinaryString(bytes[1] & 0xFF) + "." + Integer.toBinaryString(bytes[2] & 0xFF));
+				Log.v(TAG, "Int values: " + sX + " " + sY + " " + sZ);
+				X = (double)sX / 100.;
+				Y = (double)sY / 100.;
+				Z = (double)sZ / 100.;
+				
+				tetherCallbacks.positionUpdate(X, Y, Z);
+			}
+			*/
 			
 			String[] tokens = command.split(String.valueOf(DELIMITER));
 			if(tokens.length != 3) {
@@ -122,10 +194,13 @@ public class Tether {
 				return;
 			}
 			
-			X = Double.parseDouble(tokens[0]);
-			Y = Double.parseDouble(tokens[1]);
-			Z = Double.parseDouble(tokens[2]);
+			sX = Integer.parseInt(tokens[0]);
+			sY = Integer.parseInt(tokens[1]);
+			sZ = Integer.parseInt(tokens[2]);
 			
+			X = (double)sX / 100.0;
+			Y = (double)sY / 100.0;
+			Z = (double)sZ / 100.0;
 			tetherCallbacks.positionUpdate(X, Y, Z);
 		}
 		

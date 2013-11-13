@@ -126,7 +126,7 @@ import android.util.Log;
                 int bytesRead = inStream.read(inBuffer);
                 inStr = new String(inBuffer, "ASCII");
                 inStr=inStr.substring(0, bytesRead);
-                Log.i(TAG, "byteCount: "+bytesRead+ ", inStr: "+inStr);
+                //Log.i(TAG, "byteCount: "+bytesRead+ ", inStr: "+inStr);
             }
         } catch (IOException e) {
             Log.e(TAG, "Read failed", e); 
