@@ -3,72 +3,124 @@ package tether;
 import java.util.HashMap;
 import java.util.Map;
 
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Message;
 import android.util.Log;
 import fi.sulautetut.android.tblueclient.TBlue;
 
+/**
+ * Tether Android Library
+ * --------------------------------
+ * This library provides an easy interface for communicating with
+ * Tether controllers on an Android platform. The goal is to encourage 
+ * development applications using the Tether.
+ * 
+ * @version 0.2
+ * 
+ * @author Hayk Martirosyan
+ * @author Mishel Johns
+ * @author Mark Stauber
+ * @author Scott MacDonald
+ */
 public class Tether {
 	
+	// --------- MESSAGE ID CONSTANTS -----------------------------
+	
+	// Active communication established
+	public static final int CONNECTED = 0;
+	
+	// Active communication closed, manually or timeout
+	public static final int DISCONNECTED = 1;
+	
+	// New position data received
+	public static final int POSITION_UPDATE = 2;
+	
+	// Button 1 pressed
+	public static final int BUTTON_1_PRESSED = 3;
+	
+	// Button 1 released
+	public static final int BUTTON_1_RELEASED = 4;
+	
+	// --------- PRIVATE STATIC VARIABLES -------------------------
+	
+	// Tag for the log
+	private static String TAG = "libtether";
+	
+	// This dictionary holds all tether objects created by makeTether
 	private static Map<String, Tether> tethers = new HashMap<String, Tether>();
 	
-	private BTThread btt;
-	private String TAG = "libtether";
+	// --------- PUBLIC STATIC METHODS ---------------------------
 	
-	private String address;
-	private TetherCallbacks tetherCallbacks;
-	
-	private double X;
-	private double Y;
-	private double Z;
-	
-	private int sX = 0;
-	private int sY = 0;
-	private int sZ = 0;
-	
-	/* Creates a Tether object with the given address and callbacks. */
-	public static Tether makeTether(String addr, TetherCallbacks tCallbacks) {
-		Tether tether = new Tether(addr, tCallbacks);
-		Log.v("libtether", "Creating new tether object: " + tether);
+	/**
+	 *  Creates a Tether object with the given address. Used instead
+	 *  of a constructor to share Tether objects between activities.
+	 */
+	public static Tether makeTether(String addr) {
+		Tether tether = new Tether(addr);
+		Log.v(TAG, "Created new tether object: " + tether);
 		tethers.put(addr, tether);
 		return tether;
 	}
 	
-	/* Returns a Tether object given the address. */
+	/**
+	 *  Returns a Tether object given the address. Use this to access Tether
+	 *  objects when you don't have a reference to it, but its address.
+	 */
 	public static Tether getTether(String addr) {
 		return tethers.get(addr);
 	}
 	
-	public Tether(String addr, TetherCallbacks tCallbacks) {
+	// --------- INSTANCE VARIABLES ----------------------------
+
+	// Bluetooth thread that loops continuously
+	private BTThread btt;
+	
+	// Bluetooth address
+	private String address;
+	
+	// Handler that I send messages to
+	private Handler handler;
+	
+	// Floating-point coordinates in centimeters
+	private double X;
+	private double Y;
+	private double Z;
+	
+	// Coordinates as received, integers representing .1 mm
+	private int rX = 0;
+	private int rY = 0;
+	private int rZ = 0;
+	
+	// --------- PUBLIC INSTANCE METHODS ------------------------
+	
+	/**
+	 * Constructor, creates a Tether object from a given address.
+	 */
+	public Tether(String addr) {
+
+		address = addr;
 		
 		X = 0.0;
 		Y = 0.0;
 		Z = 0.0;
 		
-		tetherCallbacks = tCallbacks;
-		address = addr;
-		
 		btt = null;
+		handler = null;
 	}
 	
-	public double X() {
-		return X;
+	/**
+	 * Set the Handler that this Tether will send messages to. This is
+	 * how an application receives data from a Tether.
+	 */
+	public void setHandler(Handler h) {
+		handler = h;
 	}
 	
-	public double Y() {
-		return Y;
-	}
-	
-	public double Z() {
-		return Z;
-	}
-	
-	public String toString() {
-		return "<Tether: " + address + ">";
-	}
-	
-	public void sendCommand(String command) {
-		btt.pending_out_command = command;
-	}
-	
+	/**
+	 * Start an active connection to this Tether, continuously attempting
+	 * to connect. When succeeded, a Tether.CONNECTED Message will be sent.
+	 */
 	public void start() {
 		Log.v(TAG, "Tether start called!");
 		if (btt == null) {
@@ -77,6 +129,10 @@ public class Tether {
 		}
 	}
 	
+	/**
+	 * Close a connection to this Tether. No attempts will be made to 
+	 * communicate with it.
+	 */
 	public void stop() {
 		if (btt != null) {
 			btt.on = false;
@@ -84,29 +140,125 @@ public class Tether {
 		}
 	}
 	
-	public interface TetherCallbacks {
-		public void connected();
-		public void disconnected();
-		public void positionUpdate(double X, double Y, double Z);
+	/**
+	 * Send a command to the Tether. Returns true if succeeded
+	 * and false if failed.
+	 */
+	public boolean sendCommand(String command) {
+		if(btt != null) {
+			btt.pending_out_command = command;
+			return true;
+		} else {
+			return false;
+		}
 	}
 	
+	/**
+	 * Return the current X coordinate.
+	 */
+	public double X() { 
+		return X; 
+	}
+	
+	/**
+	 * Return the current Y coordinate.
+	 */
+	public double Y() { 
+		return Y; 
+	}
+	
+	/**
+	 * Return the current Z coordinate.
+	 */
+	public double Z() { 
+		return Z; 
+	}
+	
+	/**
+	 * String representation of a Tether object.
+	 */
+	public String toString() {
+		return "<Tether: " + address + ">";
+	}
+	
+	// --------- PRIVATE INSTANCE METHODS ------------------------
+	
+	private void sendMessage(Message msg) {
+		if(handler != null)
+			handler.sendMessage(msg);
+		else
+			Log.w(TAG, "Tether generating message but no handler!");
+	}
+	
+	private void sendConnectedMessage() {
+		
+		Message msg = new Message();
+		msg.what = CONNECTED;
+		sendMessage(msg);
+	}
+	
+	private void sendDisconnectedMessage() {
+		
+		Message msg = new Message();
+		msg.what = DISCONNECTED;
+		sendMessage(msg);
+	}
+	
+	private void sendPositionUpdateMessage() {
+		
+		Message msg = new Message();
+		msg.what = POSITION_UPDATE;
+		
+		Bundle b = new Bundle();
+		b.putDouble("X", X);
+		b.putDouble("Y", Y);
+		b.putDouble("Z", Z);
+		
+		msg.setData(b);
+		sendMessage(msg);
+	}
+	
+	// --------- BLUETOOTH FUNCTIONALITY ---------------------------
+	
+	/**
+	 * This class implements a Thread which handles a bluetooth
+	 * connection with a Tether device. It sends messages using
+	 * the Tether object's Handler.
+	 */
 	private class BTThread extends Thread {
 		
+		// Class that handles low-level bluetooth
 		private TBlue bluetooth;
+		
+		// Is the Tether in start mode?
 		private boolean on;
+		
+		// Do I have an active connection (no timeout)?
 		private boolean connected;
 		
+		// Next command to send to Tether device
 		private String pending_out_command;
-		
-		private char END_COMMAND = '\n';
-		private char DELIMITER = ' ';
-		private long TIMEOUT = 3000;
-		
+
+		// String buffer for received data
 		private String rx_buffer;
 		
+		// End command delimiter for communication
+		private char END_COMMAND = '\n';
+		
+		// Token delimiter within commands
+		private char DELIMITER = ' ';
+		
+		// Timeout in milliseconds to assume a lost connection
+		private long TIMEOUT = 3000;
+		
+		// Last time I got any commands, used for timeout
 		private long last_command_time;
 		
-		public BTThread(String addr) {
+		/**
+		 * Create a Thread for this Tether but don't start running.
+		 */
+		private BTThread(String addr) {
+			
 			bluetooth = new TBlue(address);
 			connected = false;
 			on = true;
@@ -115,11 +267,16 @@ public class Tether {
 			last_command_time = System.currentTimeMillis();
 		}
 		
+		/**
+		 * Received a full command from the Tether, parse it and send Messages.
+		 */
 		private void commandReceived(String command) {
+			
 			Log.v(TAG, "Full command received: " + command + ", length: " + command.length());
 			
 			last_command_time = System.currentTimeMillis();
 			
+			// All this stuff is failed attempts to get byte decoding working
 			/*
 			byte[] bytes;
 			try {
@@ -185,22 +342,30 @@ public class Tether {
 			}
 			*/
 			
+			// Split tokens by delimiter
 			String[] tokens = command.split(String.valueOf(DELIMITER));
 			if(tokens.length != 3) {
 				Log.e(TAG, "Unknown command, throwing away!");
 				return;
 			}
 			
-			sX = Integer.parseInt(tokens[0]);
-			sY = Integer.parseInt(tokens[1]);
-			sZ = Integer.parseInt(tokens[2]);
+			// Parse into integers as .1 mm increments
+			rX = Integer.parseInt(tokens[0]);
+			rY = Integer.parseInt(tokens[1]);
+			rZ = Integer.parseInt(tokens[2]);
 			
-			X = (double)sX / 100.0;
-			Y = (double)sY / 100.0;
-			Z = (double)sZ / 100.0;
-			tetherCallbacks.positionUpdate(X, Y, Z);
+			// Convert to centimeter doubles
+			X = (double)rX / 100.0;
+			Y = (double)rY / 100.0;
+			Z = (double)rZ / 100.0;
+			
+			// Send out a notification
+			sendPositionUpdateMessage();
 		}
 		
+		/**
+		 * Look for full commands from the received buffer.
+		 */
 		private boolean parseCommand() {
 			
 			int end_command_index = rx_buffer.indexOf(END_COMMAND);
@@ -216,22 +381,30 @@ public class Tether {
 			return true;
 		}
 		
+		/**
+		 * Thread loop, continuously looks for received data, sends pending
+		 * data, and handles timeouts. Loop breaks and Thread exits only
+		 * when the stop() function of a Tether instance is called.
+		 */
 		public void run() {
 			
 			while (true) {
+				
+				// Disconnect and shut down the thread if in stop mode
 				if(!on) {
 					if (connected) {
 						Log.v(TAG, "Tether stopped by user, closing.");
 						connected = false;
 						pending_out_command = "";
 						rx_buffer = "";
-						tetherCallbacks.disconnected();
+						sendDisconnectedMessage();
 						bluetooth.close();
 					}
 					Log.v(TAG, "Tether thread stopping.");
 					return;
 				}
 				
+				// Try to connect if not connected (BLOCKING CODE)
 				if (connected == false) {
 					Log.v(TAG, "Attempting to connect...");
 					
@@ -241,7 +414,7 @@ public class Tether {
 					if (bluetooth.connect()) {
 						Log.v(TAG, "Connected to tether!");
 						connected = true;
-						tetherCallbacks.connected();
+						sendConnectedMessage();
 						last_command_time = System.currentTimeMillis();
 					} else {
 						Log.e(TAG, "Failed to connect to tether!");
@@ -249,21 +422,24 @@ public class Tether {
 					}
 				}
 				
+				// Handle timeout
 				long time_diff = System.currentTimeMillis() - last_command_time;
 				if((time_diff > TIMEOUT) || (bluetooth.streaming() == false)) {
 
 					Log.v(TAG, "time diff: " + time_diff);
 					Log.e(TAG, "Lost bluetooth connection!");
 					connected = false;
-					tetherCallbacks.disconnected();
+					sendDisconnectedMessage();
 					continue;
 				}
 				
+				// Send out pending commands to the device
 				if (pending_out_command.length() > 0) {
 					bluetooth.write(pending_out_command);
 					pending_out_command = "";
 				}
 				
+				// Put received commands into the buffer and parse
 				String received = bluetooth.read();
 				if (received.length() > 0) {
 					rx_buffer = rx_buffer.concat(received);
