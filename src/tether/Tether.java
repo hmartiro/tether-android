@@ -42,6 +42,20 @@ public class Tether {
 	// Button 1 released
 	public static final int BUTTON_1_RELEASED = 4;
 	
+	// AOK confirmation from device
+	public static final int AOK = 5;
+	
+	// ERROR message from device
+	public static final int ERROR = 6;
+	
+	// --------- PRIVATE CONSTANTS --------------------------------
+	
+	// End command delimiter for communication
+	private static final char END_COMMAND = '\n';
+	
+	// Token delimiter within commands
+	private static final char DELIMITER = ' ';
+	
 	// --------- PRIVATE STATIC VARIABLES -------------------------
 	
 	// Tag for the log
@@ -141,6 +155,20 @@ public class Tether {
 	}
 	
 	/**
+	 * Returns true if this Tether object is in start mode.
+	 */
+	public boolean isStarted() {
+		return (!(btt == null));
+	}
+	
+	/**
+	 * Returns true if currently connected to the device.
+	 */
+	public boolean isConnected() {
+		if (!isStarted()) return false;
+		return btt.connected;
+	}
+	/**
 	 * Send a command to the Tether. Returns true if succeeded
 	 * and false if failed.
 	 */
@@ -218,6 +246,52 @@ public class Tether {
 		sendMessage(msg);
 	}
 	
+	private void gotPositionUpdate(String command) {
+		
+		String[] tokens = command.split(String.valueOf(DELIMITER));
+		if (tokens.length != 4) {
+			Log.e(TAG, "Incorrect number of arguments for POS command!");
+			return;
+		}
+		
+		// Parse into integers as .1 mm increments
+		rX = Integer.parseInt(tokens[1]);
+		rY = Integer.parseInt(tokens[2]);
+		rZ = Integer.parseInt(tokens[3]);
+		
+		// Convert to centimeter doubles
+		X = (double)rX / 100.0;
+		Y = (double)rY / 100.0;
+		Z = (double)rZ / 100.0;
+		
+		// Send out a notification
+		sendPositionUpdateMessage();
+	}
+	
+	private void gotAok(String command) {
+		
+		Message msg = new Message();
+		msg.what = AOK;
+		
+		Bundle b = new Bundle();
+		b.putString("INFO", command);
+		
+		msg.setData(b);
+		sendMessage(msg);
+	}
+	
+	private void gotError(String command) {
+		
+		Message msg = new Message();
+		msg.what = ERROR;
+		
+		Bundle b = new Bundle();
+		b.putString("INFO", command);
+		
+		msg.setData(b);
+		sendMessage(msg);
+	}
+	
 	// --------- BLUETOOTH FUNCTIONALITY ---------------------------
 	
 	/**
@@ -241,12 +315,6 @@ public class Tether {
 
 		// String buffer for received data
 		private String rx_buffer;
-		
-		// End command delimiter for communication
-		private char END_COMMAND = '\n';
-		
-		// Token delimiter within commands
-		private char DELIMITER = ' ';
 		
 		// Timeout in milliseconds to assume a lost connection
 		private long TIMEOUT = 3000;
@@ -276,91 +344,21 @@ public class Tether {
 			
 			last_command_time = System.currentTimeMillis();
 			
-			// All this stuff is failed attempts to get byte decoding working
-			/*
-			byte[] bytes;
-			try {
-				bytes = command.getBytes("US-ASCII");
-			} catch (UnsupportedEncodingException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-				return;
-			}
-			
-			char command_name = (char)bytes[0];
-			Log.v(TAG, "Command name: " + command_name);
-			
-			// Check for data command
-			if(command_name == 'D') {
-				
-				if (bytes.length != 8) {
-					Log.e(TAG, "Got data command with length " + bytes.length + ", not 8!");
-					return;
-				}
-				
-				ByteBuffer bX = ByteBuffer.allocate(2);
-				bX.order(ByteOrder.LITTLE_ENDIAN);
-				bX.put(bytes[1]);
-				bX.put(bytes[2]);
-				sX = bX.getShort(0);
-				
-				ByteBuffer bY = ByteBuffer.allocate(2);
-				bY.order(ByteOrder.LITTLE_ENDIAN);
-				bY.put(bytes[3]);
-				bY.put(bytes[4]);
-				sY = bY.getShort(0);
-				
-				ByteBuffer bZ = ByteBuffer.allocate(2);
-				bZ.order(ByteOrder.LITTLE_ENDIAN);
-				bZ.put(bytes[5]);
-				bZ.put(bytes[6]);
-				sZ = bZ.getShort(0);
-
-				short highX = (short) (bytes[1] & 0xFF);
-				short lowX = (short) (bytes[2] & 0xFF);
-				sX = ((highX & 0xFF));// << 8) | (lowX & 0xFF);
-				
-				short highY = (short) (bytes[3] & 0xFF);
-				short lowY = (short) (bytes[4] & 0xFF);
-				sY = ((highY & 0xFF));// << 8) | (lowY & 0xFF);
-				
-				short highZ = (short) (bytes[5] & 0xFF);
-				short lowZ = (short) (bytes[6] & 0xFF);
-				sZ = ((highZ & 0xFF));// << 8) | (lowZ & 0xFF);
-				
-				//sX = (short)( ((bytes[1] & 0xFF) << 8) | (bytes[2] & 0xFF) );
-				//sY = (short)( ((bytes[3] & 0xFF) << 8) | (bytes[4] & 0xFF) );
-				//sZ = (short)( ((bytes[5] & 0xFF) << 8) | (bytes[6] & 0xFF) );
-				//Log.v(TAG, "value of z: " + sZ);
-				//Log.v(TAG, "X VALUE BITSTRING: " + Integer.toBinaryString(bytes[1] & 0xFF) + "." + Integer.toBinaryString(bytes[2] & 0xFF));
-				Log.v(TAG, "Int values: " + sX + " " + sY + " " + sZ);
-				X = (double)sX / 100.;
-				Y = (double)sY / 100.;
-				Z = (double)sZ / 100.;
-				
-				tetherCallbacks.positionUpdate(X, Y, Z);
-			}
-			*/
-			
 			// Split tokens by delimiter
 			String[] tokens = command.split(String.valueOf(DELIMITER));
-			if(tokens.length != 3) {
-				Log.e(TAG, "Unknown command, throwing away!");
-				return;
+			if(tokens.length < 1) return;
+			
+			String command_name = tokens[0];
+			
+			if (command_name.equals("POS")) {
+				gotPositionUpdate(command);
+			} else if (command_name.equals("AOK")) {
+				gotAok(command);
+			} else if (command_name.equals("ERROR")) {
+				gotError(command);
+			} else {
+				Log.e(TAG, "Unknown command, throwing away: " + command_name);
 			}
-			
-			// Parse into integers as .1 mm increments
-			rX = Integer.parseInt(tokens[0]);
-			rY = Integer.parseInt(tokens[1]);
-			rZ = Integer.parseInt(tokens[2]);
-			
-			// Convert to centimeter doubles
-			X = (double)rX / 100.0;
-			Y = (double)rY / 100.0;
-			Z = (double)rZ / 100.0;
-			
-			// Send out a notification
-			sendPositionUpdateMessage();
 		}
 		
 		/**
@@ -435,7 +433,7 @@ public class Tether {
 				
 				// Send out pending commands to the device
 				if (pending_out_command.length() > 0) {
-					bluetooth.write(pending_out_command);
+					bluetooth.write(pending_out_command + END_COMMAND);
 					pending_out_command = "";
 				}
 				
