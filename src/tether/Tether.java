@@ -36,11 +36,11 @@ public class Tether {
 	// New position data received
 	public static final int POSITION_UPDATE = 2;
 	
-	// Button 1 pressed
-	public static final int BUTTON_1_PRESSED = 3;
-	
-	// Button 1 released
-	public static final int BUTTON_1_RELEASED = 4;
+	// Button 1 event
+	public static final int BUTTON_1 = 3;
+
+	// Button 2 event
+	public static final int BUTTON_2 = 4;
 	
 	// AOK confirmation from device
 	public static final int AOK = 5;
@@ -132,10 +132,10 @@ public class Tether {
 	}
 	
 	/**
-	 * Start an active connection to this Tether, continuously attempting
+	 * Begin an active connection to this Tether, continuously attempting
 	 * to connect. When succeeded, a Tether.CONNECTED Message will be sent.
 	 */
-	public void start() {
+	public void begin() {
 		Log.v(TAG, "Tether start called!");
 		if (btt == null) {
 			btt = new BTThread(address);
@@ -147,7 +147,7 @@ public class Tether {
 	 * Close a connection to this Tether. No attempts will be made to 
 	 * communicate with it.
 	 */
-	public void stop() {
+	public void end() {
 		if (btt != null) {
 			btt.on = false;
 			btt = null;
@@ -155,9 +155,9 @@ public class Tether {
 	}
 	
 	/**
-	 * Returns true if this Tether object is in start mode.
+	 * Returns true if this Tether object is active mode (begin method called).
 	 */
-	public boolean isStarted() {
+	public boolean isActive() {
 		return (!(btt == null));
 	}
 	
@@ -165,7 +165,7 @@ public class Tether {
 	 * Returns true if currently connected to the device.
 	 */
 	public boolean isConnected() {
-		if (!isStarted()) return false;
+		if (!isActive()) return false;
 		return btt.connected;
 	}
 	/**
@@ -268,6 +268,46 @@ public class Tether {
 		sendPositionUpdateMessage();
 	}
 	
+	private void gotButton1(String command) {
+		
+		String[] tokens = command.split(String.valueOf(DELIMITER));
+		if (tokens.length != 2) {
+			Log.e(TAG, "Incorrect number of arguments for BUTTON_1 command!");
+			return;
+		}
+		
+		boolean pressed = (Integer.parseInt(tokens[1]) > 0);
+		
+		Message msg = new Message();
+		msg.what = BUTTON_1;
+		
+		Bundle b = new Bundle();
+		b.putBoolean("PRESSED", pressed);
+		
+		msg.setData(b);
+		sendMessage(msg);
+	}
+
+	private void gotButton2(String command) {
+		
+		String[] tokens = command.split(String.valueOf(DELIMITER));
+		if (tokens.length != 2) {
+			Log.e(TAG, "Incorrect number of arguments for BUTTON_1 command!");
+			return;
+		}
+		
+		boolean pressed = (Integer.parseInt(tokens[1]) > 0);
+		
+		Message msg = new Message();
+		msg.what = BUTTON_2;
+		
+		Bundle b = new Bundle();
+		b.putBoolean("PRESSED", pressed);
+		
+		msg.setData(b);
+		sendMessage(msg);
+	}
+	
 	private void gotAok(String command) {
 		
 		Message msg = new Message();
@@ -356,6 +396,10 @@ public class Tether {
 				gotAok(command);
 			} else if (command_name.equals("ERROR")) {
 				gotError(command);
+			} else if (command_name.equals("BTN_1")) {
+				gotButton1(command);
+			} else if (command_name.equals("BTN_2")) {
+				gotButton2(command);
 			} else {
 				Log.e(TAG, "Unknown command, throwing away: " + command_name);
 			}
